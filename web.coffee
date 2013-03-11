@@ -57,7 +57,24 @@ app.use (req,res,next) ->
 
 # Landing page
 app.get '/', (req, res, next) ->
+
+  res.locals.news_links = [
+    {"title": "All Chrome OS hack attempts fail at Pwnium 3", "url": "#"},
+    {"title": "Americas Hardest-Working Know-It-All", "url": "#"},
+    {"title": "The dazzling glory of San Francisco’s 25,000", "url": "#"},
+    {"title": "Top 10 Ways You Can Waste Money Without Realizing It", "url": "#"},
+    {"title": "RebelMouse: How to Create Your Personalized Social Front Page", "url": "#"},
+    {"title": "This Weeks Top Downloads", "url": "#"},
+    {"title": "Would You Buy Gucci Off Your Smartphone?", "url": "#"},
+    {"title": "Wired Space Photo of the Day: Cosmic Fire", "url": "#"},
+    {"title": "BlackBerry Q10 prototype caught in the wild with a rubberized back ksd f iodsfj osdjf oioiwe foiwej foiwjef", "url": "#"},
+    {"title": "JQuery Tutorial (Part 5): AJAX Them All!", "url": "#"}
+  ]
+
   res.render 'pages/landing'
+    
+app.get '/settings', (req, res, next) ->
+  res.render 'pages/settings'
 
 # Demonstrate unhandled exceptions
 app.get '/throw', (req, res, next) ->

@@ -1,0 +1,25 @@
+extend ../layout
+
+
+
+block content
+  
+  div.masthead
+    ul.nav.nav-pills.pull-right
+      li
+        a(href="/") Home
+      li.active
+        a(href="/settings") Settings
+    h3.muted NewsReader
+
+  hr
+
+  form
+    fieldset
+      label: h5 Keyword Booster
+      input(type="text")
+      span.help-block Comma separated list of tokens to boost ranking
+      label.checkbox
+        input.checkbox(type="checkbox") 
+        | Check me out
+      button.btn(type="submit") Save

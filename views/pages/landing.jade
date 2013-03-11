@@ -1,4 +1,34 @@
 extend ../layout
 
+
+
 block content
-  h1 Hello World
+  
+  div.masthead
+    ul.nav.nav-pills.pull-right
+      li.active
+        a(href="/") Home
+      li
+        a(href="/clicked") Clicked
+      li
+        a(href="/saved") Saved
+      li
+        a(href="/archived") Archived
+      li
+        a(href="/settings") Settings
+    h3.muted NewsReader
+
+  hr
+
+  div.row-fluid
+    for news_link in news_links
+      div.news-item
+        p
+          a(href="#{news_link.url}")= news_link.title
+      
+  hr
+
+  p(style="text-align:center;")
+    button.btn.btn-large.btn-primary(style="width:150px;")
+      | Next 
+      i.icon-chevron-right.icon-white
