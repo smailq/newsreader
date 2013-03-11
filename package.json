@@ -1,0 +1,34 @@
+{
+  "name": "newsreader",
+  "description": "Consume News",
+  "version": "0.0.1",
+  "author": "Kyu Lee <smailq@gmail.com>",
+  "repository": {
+    "type": "git",
+    "url": "git@github.com:smailq/newsreader.git"
+  },
+  "engines": {
+    "node": ">= 0.8.0"
+  },
+  "dependencies": {
+    "express": "3.x.x",
+    "coffee-script": "1.x.x",
+    "connect-assets": "2.x.x",
+    "stylus": "0.x.x",
+    "jade": "0.x.x",
+    "underscore": "1.x.x",
+    "validator": "0.x.x",
+    "nconf": "0.6.x",
+    "winston": "0.6.x"
+  },
+  "devDependencies": {
+    "mocha": "1.3.x",
+    "should": "1.1.x"
+  },
+  "scripts" : {
+    "test": "mocha test",
+    "start": "coffee web.coffee"
+  }
+}
+
+
