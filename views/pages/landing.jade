@@ -26,14 +26,20 @@ block content
   hr
 
   div.row-fluid
-    for news_link in news_links
-      div.news-item
-        p
-          a(href="#{news_link.url}")= news_link.title
-      
-  hr
+    if news_links.length
+      for news_link in news_links
+        div.news-item
+          p
+            if news_link.url != undefined
+              a(href="#{news_link.url}")= news_link.title
+            else
+              span(style="text-decoration: line-through;") #{news_link.title}
+    else
+      h1(style="text-align:center;margin-top:50px;") You've read everything.
 
-  p(style="text-align:center;")
-    button.btn.btn-large.btn-primary(style="width:150px;")
-      | Next 
-      i.icon-chevron-right.icon-white
+  if news_links.length
+    hr
+    p(style="text-align:center;")
+      a.btn.btn-large.btn-primary(style="width:150px;",href=("/next"))
+        | Next 
+        i.icon-chevron-right.icon-white

@@ -12,6 +12,8 @@ _ = require 'underscore'
 winston = require 'winston'
 # Configuration management
 nconf = require 'nconf'
+# Mongoose
+mongoose = require 'mongoose'
 
 # Configure 'nconf'
 nconf.argv().env()
@@ -29,6 +31,23 @@ nconf.add 'global',
 if nconf.get('logFile')?
   winston.add winston.transports.File, { filename: nconf.get('logFile') }
   winston.remove winston.transports.Console
+
+# Setup Mongoose
+mongoose.connect('mongodb://localhost/test')
+
+newsItemSchema = mongoose.Schema
+  source: String
+  page_id: Number
+  viewed_page_id: Number
+  source_url: String
+  title: String
+  url: String
+  domain: String
+  fetched_at: { type: Date, default: Date.now }
+
+newsItemSchema.set('toObject')
+
+NewsItem = mongoose.model('NewsItem', newsItemSchema)
 
 # Setup express
 app = express()
@@ -58,21 +77,32 @@ app.use (req,res,next) ->
 # Landing page
 app.get '/', (req, res, next) ->
 
-  res.locals.news_links = [
-    {"title": "All Chrome OS hack attempts fail at Pwnium 3", "url": "#"},
-    {"title": "Americas Hardest-Working Know-It-All", "url": "#"},
-    {"title": "The dazzling glory of San Francisco’s 25,000", "url": "#"},
-    {"title": "Top 10 Ways You Can Waste Money Without Realizing It", "url": "#"},
-    {"title": "RebelMouse: How to Create Your Personalized Social Front Page", "url": "#"},
-    {"title": "This Weeks Top Downloads", "url": "#"},
-    {"title": "Would You Buy Gucci Off Your Smartphone?", "url": "#"},
-    {"title": "Wired Space Photo of the Day: Cosmic Fire", "url": "#"},
-    {"title": "BlackBerry Q10 prototype caught in the wild with a rubberized back ksd f iodsfj osdjf oioiwe foiwej foiwjef", "url": "#"},
-    {"title": "JQuery Tutorial (Part 5): AJAX Them All!", "url": "#"}
-  ]
+  # Get news from mongo
+  NewsItem.find({"page_id": { "$exists": true } }).sort("page_id").limit(6).exec( (err, newsItems) ->
+    next err if err
 
-  res.render 'pages/landing'
-    
+    res.locals.news_links = newsItems
+
+    res.render 'pages/landing'
+  )
+
+# Mark top pages as read
+app.get '/next', (req, res, next) ->
+
+  NewsItem.findOne({"page_id": { "$exists": true } }).sort("page_id").exec( (err, newsItem) ->
+    return next err if err
+    return res.redirect '/' if not newsItem?
+
+    # get lowest page id
+    low_page_id = newsItem['page_id']
+    # Mark this page as viewed
+    NewsItem.collection.update {"page_id":low_page_id}, {"$rename": { "page_id":"viewed_page_id" } }, {"multi":true, "safe":true} , (err) ->
+      next err if err
+
+      res.redirect '/'
+  )
+
+
 app.get '/settings', (req, res, next) ->
   res.render 'pages/settings'
 
