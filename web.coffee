@@ -36,13 +36,13 @@ if nconf.get('logFile')?
 mongoose.connect('mongodb://localhost/test')
 
 newsItemSchema = mongoose.Schema
-  source: String
+  news_title: String
+  news_url: String
+  news_domain: String
+  source_name: String
+  source_url: String
   page_id: Number
   viewed_page_id: Number
-  source_url: String
-  title: String
-  url: String
-  domain: String
   fetched_at: { type: Date, default: Date.now }
 
 newsItemSchema.set('toObject')
@@ -78,7 +78,7 @@ app.use (req,res,next) ->
 app.get '/', (req, res, next) ->
 
   # Get news from mongo
-  NewsItem.find({"page_id": { "$exists": true } }).sort("page_id").limit(6).exec( (err, newsItems) ->
+  NewsItem.find({"page_id": { "$exists": true } }).sort("page_id").limit(10).exec( (err, newsItems) ->
     next err if err
 
     res.locals.news_links = newsItems

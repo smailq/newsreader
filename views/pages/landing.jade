@@ -30,10 +30,10 @@ block content
       for news_link in news_links
         div.news-item
           p
-            if news_link.url != undefined
-              a(href="#{news_link.url}")= news_link.title
+            if news_link.news_url != undefined
+              a(href="#{news_link.news_url}")= news_link.news_title
             else
-              span(style="text-decoration: line-through;") #{news_link.title}
+              span(style="text-decoration: line-through;") #{news_link.news_title}
     else
       h1(style="text-align:center;margin-top:50px;") You've read everything.
 
