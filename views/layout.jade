@@ -7,13 +7,42 @@ html
       link(rel="stylesheet", href="//cdnjs.cloudflare.com/ajax/libs/twitter-bootstrap/2.3.1/css/bootstrap.min.css")
     -else
       link(rel="stylesheet", href="/static/libs/twitter-bootstrap/2.3.1/css/bootstrap.css")
+    link(rel="stylesheet", href="/static/libs/font-awesome/css/font-awesome.css")
+    link(href="http://fonts.googleapis.com/css?family=Roboto:300,700",rel="stylesheet",type="text/css")
     != css('layout')
     // Local CSS
     block layout-css
   body
     div.container
+      div.masthead
+        ul.nav.nav-pills.pull-right
+          li
+            a(href="/options")
+              i.icon-cogs.icon-large
+
+        h3
+          a(href="/", style="text-decoration:none;") NR
+          small(style="color:#444;padding-left:20px;")
+            | 20%
+            span.divider  / 
+            a#archived(href="/archived") 93a
+            span.divider  /  
+            a#clicked(href="/clicked") 38c
+            span.divider  / 
+            a#saved(href="/saved") 5s
+            span.divider  / 
+            a(href="/graphs") ...
+
+    div.container
       // Local content
       block content
+
+    
+
+    #fetching.modal-backdrop.fade.in.hide(style="text-align:center;padding-top:300px;")
+      h1(style="color:white;") Fetching ...
+
+
     // Global JS
     -if (env == 'production')
       script(src="//cdnjs.cloudflare.com/ajax/libs/jquery/1.9.1/jquery.min.js")
@@ -21,6 +50,19 @@ html
     - else
       script(src="/static/libs/jquery/1.9.1/jquery.js")
       script(src="/static/libs/twitter-bootstrap/2.3.1/js/bootstrap.js")
+    script(src="/static/libs/keymaster/keymaster.min.js")
+    script
+      key('a', function(){ window.location.href = '/archived' });
+      key('c', function(){ window.location.href = '/clicked' });
+      key('s', function(){ window.location.href = '/saved' });
+      key('g', function(){ window.location.href = '/graphs' });
+      key('o', function(){ window.location.href = '/options' });
+      key('f', function(){
+        $('#fetching').removeClass('hide');
+        key.deleteScope('all');
+        window.location.href = '/fetch'
+      });
+      key('h', function(){ window.location.href = '/' });
     // Local JS
     block layout-js
  

@@ -3,6 +3,9 @@ extend ../layout
 block content
 
   div.row-fluid(style="padding:15px 0px;")
+
+
+
     if news_links.length
       for news_link in news_links
         div.news-item
@@ -12,10 +15,11 @@ block content
             else
               span(style="text-decoration: line-through;") #{news_link.news_title}
     else
-      h1(style="text-align:center;margin-top:50px;") You've read everything.
+      h1(style="text-align:center;margin-top:50px;") Empty.
 
 
 block layout-js
   script
-    key('n', function(){ window.location.href = '/next' });
-    key('u', function(){ window.location.href = '/undo' });
+    $("a##{filter_name}").css('text-decoration', 'underline');
+    $("a##{filter_name}").css('font-size', '20px');
+

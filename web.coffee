@@ -14,6 +14,11 @@ winston = require 'winston'
 nconf = require 'nconf'
 # Mongoose
 mongoose = require 'mongoose'
+# Async
+async = require 'async'
+
+jsdom = require 'jsdom'
+url = require 'url'
 
 # Configure 'nconf'
 nconf.argv().env()
@@ -86,12 +91,81 @@ app.get '/', (req, res, next) ->
     res.render 'pages/landing'
   )
 
+app.get '/archived', (req, res, next) ->
+  res.locals.news_links = []
+  res.locals.filter_name = 'archived'
+  res.render 'pages/filtered'
+
+app.get '/clicked', (req, res, next) ->
+  res.locals.news_links = []
+  res.locals.filter_name = 'clicked'
+  res.render 'pages/filtered'
+
+app.get '/saved', (req, res, next) ->
+  res.locals.news_links = []
+  res.locals.filter_name = 'saved'
+  res.render 'pages/filtered'
+
+app.get '/graphs', (req, res, next) ->
+  res.render 'pages/graphs'
+
+
+
 # Mark top pages as read
 app.get '/next', (req, res, next) ->
 
   NewsItem.findOne({"page_id": { "$exists": true } }).sort("page_id").exec( (err, newsItem) ->
     return next err if err
-    return res.redirect '/' if not newsItem?
+    if not newsItem?
+      return async.parallel([
+        (cb) ->
+          # Find largest page_id
+          NewsItem.findOne({"page_id": { "$exists": true } }).sort("-page_id").exec( (err, newsItem) ->
+            if not newsItem? or err
+              return cb(null, null) 
+            else
+              cb null, newsItem.page_id
+          )
+        ,
+        (cb) ->
+          # Find largest viewed_page_id
+          NewsItem.findOne({"viewed_page_id": { "$exists": true } }).sort("-viewed_page_id").exec( (err, newsItem) ->
+            if not newsItem? or err
+              return cb(null, null) 
+            else
+              cb null, newsItem.page_id
+          )
+        ],
+        
+        (err, results) ->
+          return next err if err
+
+          # Set largest new page_id
+          new_page_id = 0
+
+          if results[0]?
+            new_page_id = results[0] + 1
+          else if results[1]?
+            new_page_id = results[1] + 1
+
+          # Just mark any 10 items
+          NewsItem.find({"page_id": {"$exists":false}, "viewed_page_id" : {"$exists" : false } } ).sort("-fetched_at").limit(10).exec( (err, newsItems) ->
+
+            return next err if err
+            return res.redirect '/' if not newsItems?
+
+            idlist = []
+
+            for newsItem in newsItems
+              idlist.push(newsItem._id)
+
+            NewsItem.update  { "_id" : { "$in": idlist } }, { "$set" : { "page_id": new_page_id } }, {"multi":true}, (err) ->
+              return next err if err
+              
+              res.redirect '/'
+
+          )
+      )
 
     # get lowest page id
     low_page_id = newsItem['page_id']
@@ -99,12 +173,108 @@ app.get '/next', (req, res, next) ->
     NewsItem.collection.update {"page_id":low_page_id}, {"$rename": { "page_id":"viewed_page_id" } }, {"multi":true, "safe":true} , (err) ->
       next err if err
 
-      res.redirect '/'
+      async.parallel([
+        (cb) ->
+          # Find largest page_id
+          NewsItem.findOne({"page_id": { "$exists": true } }).sort("-page_id").exec( (err, newsItem) ->
+            if not newsItem? or err
+              return cb(null, null) 
+            else
+              cb null, newsItem.page_id
+          )
+        ,
+        (cb) ->
+          # Find largest viewed_page_id
+          NewsItem.findOne({"viewed_page_id": { "$exists": true } }).sort("-viewed_page_id").exec( (err, newsItem) ->
+            if not newsItem? or err
+              return cb(null, null) 
+            else
+              cb null, newsItem.page_id
+          )
+        ],
+        
+        (err, results) ->
+          return next err if err
+
+          # Set largest new page_id
+          new_page_id = 0
+
+          if results[0]?
+            new_page_id = results[0] + 1
+          else if results[1]?
+            new_page_id = results[1] + 1
+
+          # Just mark any 10 items
+          NewsItem.find({"page_id": {"$exists":false}, "viewed_page_id" : {"$exists" : false } } ).sort("-fetched_at").limit(10).exec( (err, newsItems) ->
+
+            return next err if err
+            return res.redirect '/' if not newsItems?
+
+            idlist = []
+
+            for newsItem in newsItems
+              idlist.push(newsItem._id)
+
+            NewsItem.update  { "_id" : { "$in": idlist } }, { "$set" : { "page_id": new_page_id } }, {"multi":true}, (err) ->
+              return next err if err
+              
+              res.redirect '/'
+
+          )
+      )
+
+
+
+
   )
 
+app.get '/fetch', (req, res, next) ->
+  jsdom.env "http://skimfeed.com/", ["http://code.jquery.com/jquery.js"],
+  (err, window) ->
 
-app.get '/settings', (req, res, next) ->
-  res.render 'pages/settings'
+    parsed_links = []
+
+    boxes = window.$("div.boxes")
+
+    for box in boxes
+
+      source = window.$("span.boxtitles a[target='_blank']", box)
+
+      if not source?
+        continue
+
+      source_name = source.text()
+      source_url = source.attr('href')
+
+      links = window.$("ul li a[target='_blank']", box)
+
+      if not links?
+        continue
+
+      for link in links
+        href = link.href
+        parsed_url = url.parse(href, true)
+        real_url_parsed = url.parse(parsed_url.query.u)
+
+        if not link.title? or not parsed_url.query.u?
+          continue
+
+        a = new NewsItem
+          news_title: link.title
+          news_url: parsed_url.query.u
+          news_domain: real_url_parsed.hostname
+          source_name: source_name
+          source_url: source_url
+          fetched_at: Date.now()
+
+        a.save()
+
+    res.redirect '/'
+
+
+
+app.get '/options', (req, res, next) ->
+  res.render 'pages/options'
 
 # Demonstrate unhandled exceptions
 app.get '/throw', (req, res, next) ->
