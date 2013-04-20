@@ -13,7 +13,7 @@ html
     // Local CSS
     block layout-css
   body
-    div.container
+    div.container-fluid
       div.masthead
         ul.nav.nav-pills.pull-right
           li
@@ -23,17 +23,17 @@ html
         h3
           a(href="/", style="text-decoration:none;") NR
           small(style="color:#444;padding-left:20px;")
-            | 20%
+            a#next(href="/next") #{new_count}n
             span.divider  / 
-            a#archived(href="/archived") 93a
+            a#archived(href="/archived") #{archived_count}a
             span.divider  /  
-            a#clicked(href="/clicked") 38c
+            a#clicked(href="/clicked") #{clicked_count}c
             span.divider  / 
-            a#saved(href="/saved") 5s
+            a#saved(href="/saved") #{saved_count}s
             span.divider  / 
             a(href="/graphs") ...
 
-    div.container
+    div.container-fluid
       // Local content
       block content
 

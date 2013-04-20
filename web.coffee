@@ -12,13 +12,17 @@ _ = require 'underscore'
 winston = require 'winston'
 # Configuration management
 nconf = require 'nconf'
-# Mongoose
-mongoose = require 'mongoose'
+
 # Async
 async = require 'async'
 
 jsdom = require 'jsdom'
 url = require 'url'
+pg = require 'pg'
+
+uuid = require 'node-uuid'
+
+pg_address = 'pg://web:web@localhost/newsreader'
 
 # Configure 'nconf'
 nconf.argv().env()
@@ -37,22 +41,6 @@ if nconf.get('logFile')?
   winston.add winston.transports.File, { filename: nconf.get('logFile') }
   winston.remove winston.transports.Console
 
-# Setup Mongoose
-mongoose.connect('mongodb://localhost/test')
-
-newsItemSchema = mongoose.Schema
-  news_title: String
-  news_url: String
-  news_domain: String
-  source_name: String
-  source_url: String
-  page_id: Number
-  viewed_page_id: Number
-  fetched_at: { type: Date, default: Date.now }
-
-newsItemSchema.set('toObject')
-
-NewsItem = mongoose.model('NewsItem', newsItemSchema)
 
 # Setup express
 app = express()
@@ -76,33 +64,82 @@ app.set 'view options', layout: false
 
 # Set locals for global template context
 app.use (req,res,next) ->
+
+  # Set defaults
   res.locals.env = process.env.NODE_ENV
-  next()
+  res.locals.news_links = []
+  res.locals.new_count = '?'
+  res.locals.archived_count = '?'
+  res.locals.clicked_count = '?'
+  res.locals.saved_count = '?'
+
+
+  pg.connect pg_address, (err, client, done) ->
+
+    return next err if err?
+
+
+    client.query(
+      "SELECT count(CASE WHEN flags ? 'archived' THEN null ELSE 1 END) AS new_count, count(CASE WHEN flags ? 'archived' THEN 1 ELSE null END) AS arch_count,count(CASE WHEN flags ? 'clicked' THEN 1 ELSE null END) AS click_count FROM items",
+      (err, result) ->
+        return next err if err?
+
+        res.locals.new_count = result.rows[0]['new_count']
+        res.locals.archived_count = result.rows[0]['arch_count']
+        res.locals.clicked_count = result.rows[0]['click_count']
+        done()
+        next()
+    )
+
 
 # Landing page
 app.get '/', (req, res, next) ->
 
-  # Get news from mongo
-  NewsItem.find({"page_id": { "$exists": true } }).sort("page_id").limit(10).exec( (err, newsItems) ->
-    next err if err
+  pg.connect pg_address, (err, client, done) ->
 
-    res.locals.news_links = newsItems
+    return next err if err?
 
-    res.render 'pages/landing'
-  )
+    client.query(
+      "SELECT * FROM items WHERE ((CASE WHEN flags IS NULL THEN ''::hstore ELSE flags END) ? 'clicked') is false AND ((CASE WHEN flags IS NULL THEN ''::hstore ELSE flags END) ? 'archived') is false AND page_num IN (SELECT page_num FROM items WHERE page_num IS NOT NULL ORDER BY page_num DESC LIMIT 1)",
+      (err, result) ->
+        done()
+
+        return next err if err?
+        
+        res.locals.news_links = result.rows
+
+
+        res.render 'pages/landing'
+        
+    )
 
 app.get '/archived', (req, res, next) ->
-  res.locals.news_links = []
+  
   res.locals.filter_name = 'archived'
   res.render 'pages/filtered'
 
 app.get '/clicked', (req, res, next) ->
-  res.locals.news_links = []
-  res.locals.filter_name = 'clicked'
-  res.render 'pages/filtered'
+
+  pg.connect pg_address, (err, client, done) ->
+
+    return next err if err?
+
+    client.query(
+      "SELECT * FROM items WHERE flags ? 'clicked' LIMIT 50",
+      (err, result) ->
+        
+        console.log result.rows
+        return next err if err?
+        
+        res.locals.news_links = result.rows
+        res.locals.filter_name = 'clicked'
+        res.render 'pages/filtered'
+
+        done()
+    )
 
 app.get '/saved', (req, res, next) ->
-  res.locals.news_links = []
+  
   res.locals.filter_name = 'saved'
   res.render 'pages/filtered'
 
@@ -114,163 +151,128 @@ app.get '/graphs', (req, res, next) ->
 # Mark top pages as read
 app.get '/next', (req, res, next) ->
 
-  NewsItem.findOne({"page_id": { "$exists": true } }).sort("page_id").exec( (err, newsItem) ->
-    return next err if err
-    if not newsItem?
-      return async.parallel([
-        (cb) ->
-          # Find largest page_id
-          NewsItem.findOne({"page_id": { "$exists": true } }).sort("-page_id").exec( (err, newsItem) ->
-            if not newsItem? or err
-              return cb(null, null) 
-            else
-              cb null, newsItem.page_id
-          )
-        ,
-        (cb) ->
-          # Find largest viewed_page_id
-          NewsItem.findOne({"viewed_page_id": { "$exists": true } }).sort("-viewed_page_id").exec( (err, newsItem) ->
-            if not newsItem? or err
-              return cb(null, null) 
-            else
-              cb null, newsItem.page_id
-          )
-        ],
+  pg.connect pg_address, (err, client, done) ->
+
+    return next err if err?
+
+    client.query(
+      "SELECT page_num FROM items WHERE page_num IS NOT NULL ORDER BY page_num DESC LIMIT 1",
+      (err, result) ->
+
+        return next err if err?
+
+        page_num = 1
         
-        (err, results) ->
-          return next err if err
+        if result.rowCount == 1
+          page_num = result.rows[0]['page_num'] + 1
 
-          # Set largest new page_id
-          new_page_id = 0
+        client.query(
+          "UPDATE items SET page_num = $1 WHERE id IN (SELECT id FROM items WHERE page_num IS NULL ORDER BY rank DESC LIMIT 9)",
+          [ page_num ],
+          (err, result) ->
+            return next err if err?
 
-          if results[0]?
-            new_page_id = results[0] + 1
-          else if results[1]?
-            new_page_id = results[1] + 1
-
-          # Just mark any 10 items
-          NewsItem.find({"page_id": {"$exists":false}, "viewed_page_id" : {"$exists" : false } } ).sort("-fetched_at").limit(10).exec( (err, newsItems) ->
-
-            return next err if err
-            return res.redirect '/' if not newsItems?
-
-            idlist = []
-
-            for newsItem in newsItems
-              idlist.push(newsItem._id)
-
-            NewsItem.update  { "_id" : { "$in": idlist } }, { "$set" : { "page_id": new_page_id } }, {"multi":true}, (err) ->
-              return next err if err
-              
-              res.redirect '/'
-
-          )
-      )
-
-    # get lowest page id
-    low_page_id = newsItem['page_id']
-    # Mark this page as viewed
-    NewsItem.collection.update {"page_id":low_page_id}, {"$rename": { "page_id":"viewed_page_id" } }, {"multi":true, "safe":true} , (err) ->
-      next err if err
-
-      async.parallel([
-        (cb) ->
-          # Find largest page_id
-          NewsItem.findOne({"page_id": { "$exists": true } }).sort("-page_id").exec( (err, newsItem) ->
-            if not newsItem? or err
-              return cb(null, null) 
-            else
-              cb null, newsItem.page_id
-          )
-        ,
-        (cb) ->
-          # Find largest viewed_page_id
-          NewsItem.findOne({"viewed_page_id": { "$exists": true } }).sort("-viewed_page_id").exec( (err, newsItem) ->
-            if not newsItem? or err
-              return cb(null, null) 
-            else
-              cb null, newsItem.page_id
-          )
-        ],
-        
-        (err, results) ->
-          return next err if err
-
-          # Set largest new page_id
-          new_page_id = 0
-
-          if results[0]?
-            new_page_id = results[0] + 1
-          else if results[1]?
-            new_page_id = results[1] + 1
-
-          # Just mark any 10 items
-          NewsItem.find({"page_id": {"$exists":false}, "viewed_page_id" : {"$exists" : false } } ).sort("-fetched_at").limit(10).exec( (err, newsItems) ->
-
-            return next err if err
-            return res.redirect '/' if not newsItems?
-
-            idlist = []
-
-            for newsItem in newsItems
-              idlist.push(newsItem._id)
-
-            NewsItem.update  { "_id" : { "$in": idlist } }, { "$set" : { "page_id": new_page_id } }, {"multi":true}, (err) ->
-              return next err if err
-              
-              res.redirect '/'
-
-          )
-      )
+            client.query(
+              "UPDATE items SET flags = (CASE WHEN flags IS NULL THEN '' ELSE flags END) || hstore('archived','1') WHERE page_num < $1",
+              [ page_num ],
+              (err, result) ->
+                return next err if err?
 
 
 
 
-  )
+                res.redirect '/'
+                done()
+            )
+        )
+    )
+
 
 app.get '/fetch', (req, res, next) ->
-  jsdom.env "http://skimfeed.com/", ["http://code.jquery.com/jquery.js"],
-  (err, window) ->
 
-    parsed_links = []
+  pg.connect pg_address, (err, client, done) ->
 
-    boxes = window.$("div.boxes")
+    client.query(
+      "UPDATE items SET page_num = -1 WHERE id IN (SELECT id FROM items WHERE page_num IS NULL AND fetched_at < now() - interval '12 hours')",
+      (err, result) ->
+    )
 
-    for box in boxes
+    return next err if err?
+    
+    jsdom.env "http://skimfeed.com/", ["http://code.jquery.com/jquery.js"],
+    (err, window) ->
 
-      source = window.$("span.boxtitles a[target='_blank']", box)
+      parsed_links = []
 
-      if not source?
-        continue
+      boxes = window.$("div.boxes")
 
-      source_name = source.text()
-      source_url = source.attr('href')
+      for box in boxes
 
-      links = window.$("ul li a[target='_blank']", box)
+        source = window.$("span.boxtitles a[target='_blank']", box)
 
-      if not links?
-        continue
-
-      for link in links
-        href = link.href
-        parsed_url = url.parse(href, true)
-        real_url_parsed = url.parse(parsed_url.query.u)
-
-        if not link.title? or not parsed_url.query.u?
+        if not source?
           continue
 
-        a = new NewsItem
-          news_title: link.title
-          news_url: parsed_url.query.u
-          news_domain: real_url_parsed.hostname
-          source_name: source_name
-          source_url: source_url
-          fetched_at: Date.now()
+        source_name = source.text()
+        source_url = source.attr('href')
 
-        a.save()
+        links = window.$("ul li a[target='_blank']", box)
 
-    res.redirect '/'
+        if not links?
+          continue
 
+        for link in links
+          href = link.href
+          parsed_url = url.parse(href, true)
+          real_url_parsed = url.parse(parsed_url.query.u)
+
+          if not link.title? or not parsed_url.query.u?
+            continue
+
+          
+          client.query(
+            "INSERT INTO items (title, url, domain, id) VALUES ($1, $2, $3, $4);",
+            [ link.title, parsed_url.query.u, real_url_parsed.hostname, uuid.v4() ],
+            (err) ->
+              # ignore err
+          )
+
+          
+
+          #a.save()
+
+      res.redirect '/'
+      done()
+
+
+app.get '/click/:id', (req, res, next) ->
+  pg.connect pg_address, (err, client, done) ->
+
+    return next err if err?
+
+    client.query(
+      "SELECT url FROM items WHERE id = $1 LIMIT 1",
+      [ req.param('id') ]
+      (err, result) ->
+
+        return next err if err?
+
+        if result.rowCount == 1
+          res.redirect result.rows[0]['url']
+        else
+          res.status 404
+          res.render '404'
+
+        client.query(
+          "UPDATE items SET flags = (CASE WHEN flags IS NULL THEN '' ELSE flags END) || hstore('clicked','1') WHERE id = $1"
+          [ req.param('id') ]
+          (err, result) ->
+
+            done()
+
+            # return next err if err?
+        )
+    )
 
 
 app.get '/options', (req, res, next) ->

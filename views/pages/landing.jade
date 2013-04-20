@@ -4,18 +4,33 @@ block content
 
   div.row-fluid(style="padding:15px 0px;")
     if news_links.length
+      - index = 1;
       for news_link in news_links
-        div.news-item
-          p(style="font-family:Roboto;")
-            if news_link.news_url != undefined
-              a(href="#{news_link.news_url}",target="#")= news_link.news_title
-            else
-              span(style="text-decoration: line-through;") #{news_link.news_title}
+        if news_link.url != undefined
+          div.news-item
+            small(style="padding-right:10px;")
+              | #{index}
+            a(id="link_#{index}", href="click/#{news_link.id}", target="#")= news_link.title
+            //
+              small(style="padding-left:10px;")
+                | Owen Campbell-Moore
+        - index++;
+    else if new_count > 0
+      h4 Press 'n' to see new items.
     else
-      h1(style="text-align:center;margin-top:50px;") You've read everything.
+      h4 Press 'f' to fetch more items.
 
 
 block layout-js
   script
     key('n', function(){ window.location.href = '/next' });
     key('u', function(){ window.location.href = '/undo' });
+    key('1', function(){ var link = $('a#link_1'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('2', function(){ var link = $('a#link_2'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('3', function(){ var link = $('a#link_3'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('4', function(){ var link = $('a#link_4'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('5', function(){ var link = $('a#link_5'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('6', function(){ var link = $('a#link_6'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('7', function(){ var link = $('a#link_7'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('8', function(){ var link = $('a#link_8'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
+    key('9', function(){ var link = $('a#link_9'); if (link[0] != undefined) { link.css('text-decoration','line-through'); link[0].click(); } });
