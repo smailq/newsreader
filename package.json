@@ -17,7 +17,6 @@
     "stylus": "0.x.x",
     "jade": "0.x.x",
     "underscore": "1.x.x",
-    "validator": "0.x.x",
     "nconf": "0.6.x",
     "winston": "0.6.x",
     "mongoose": "3.x.x",
